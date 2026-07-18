@@ -1,0 +1,19 @@
+{
+  "name": "surety",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Surety — Trust-Based Service Marketplace (Kenya)",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspaces --if-present",
+    "db:migrate": "npx prisma migrate dev --schema=backend/prisma/schema.prisma",
+    "db:seed": "npx prisma db seed --schema=backend/prisma/schema.prisma",
+    "db:studio": "npx prisma studio --schema=backend/prisma/schema.prisma"
+  }
+}

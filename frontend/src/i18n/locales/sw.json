@@ -1,0 +1,40 @@
+{
+  "app_name": "Surety",
+  "tagline": "Soko la Huduma Iliyoidhinishwa",
+  "nav": {
+    "home": "Nyumbani",
+    "search": "Tafuta Huduma",
+    "my_bookings": "Uagizaji Wangu",
+    "dashboard": "Dashibodi",
+    "login": "Ingia",
+    "signup": "Jisajili",
+    "logout": "Toka",
+    "profile": "Wasifu",
+    "support": "Msaada"
+  },
+  "auth": {
+    "login_title": "Karibu Teni",
+    "signup_title": "Fungua Akaunti",
+    "phone": "Nambari ya Simu",
+    "phone_placeholder": "+254 7XX XXX XXX",
+    "full_name": "Jina Kamili",
+    "email": "Barua Pepe (si lazima)",
+    "role": "Mimi ni",
+    "role_customer": "Mteja",
+    "role_provider": "Mtoa Huduma",
+    "send_otp": "Tuma OTP",
+    "verify_otp": "Thibitisha OTP",
+    "otp_code": "Ingiza Nambari ya OTP",
+    "otp_sent": "OTP imetumwa kwa simu yako",
+    "mock_otp": "Nambari ya OTP ya mtihani:",
+    "signup_as": "Jisajili kama"
+  },
+  "common": {
+    "loading": "Inapakia...",
+    "save": "Hifadhi",
+    "cancel": "Ghairi",
+    "error": "Hitilafu imetokea",
+    "no_data": "Hakuna data",
+    "back": "Nyuma"
+  }
+}

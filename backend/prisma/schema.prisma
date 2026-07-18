@@ -1,0 +1,303 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── User & Auth ────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  phone        String   @unique
+  email        String?
+  fullName     String
+  role         String   @default("CUSTOMER") // CUSTOMER | PROVIDER | ADMIN
+  countryCode  String   @default("KE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  provider         Provider?
+  otpRecords       OtpRecord[]
+  bookingsAsCustomer Booking[] @relation("CustomerBookings")
+  sentMessages      BookingMessage[]
+  reviews            Review[]
+  disputes           Dispute[]
+  supportTickets     SupportTicket[]
+}
+
+model OtpRecord {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String
+  purpose   String   @default("LOGIN") // LOGIN | VERIFY_PHONE
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Provider & Verification ──────────────────────────────
+
+model Provider {
+  id                          String   @id @default(uuid())
+  userId                      String   @unique
+  bio                         String   @default("")
+  location                    String   @default("")
+  county                      String   @default("")
+  averageRating               Float    @default(0)
+  ratingCount                 Int      @default(0)
+  responseTimeMinutes         Int?
+  verificationStatus          String   @default("UNVERIFIED") // UNVERIFIED | PENDING_VERIFICATION | VERIFIED | REJECTED
+  verificationRejectionReason String?
+  countryCode                 String   @default("KE")
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  user                   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verificationDocuments  VerificationDocument[]
+  providerCategories     ProviderCategory[]
+  portfolioPhotos        PortfolioPhoto[]
+  bookingsAsProvider     Booking[]
+  reviews                Review[]
+
+  @@index([verificationStatus])
+  @@index([county])
+}
+
+model VerificationDocument {
+  id             String   @id @default(uuid())
+  providerId     String
+  documentType   String   // NATIONAL_ID | PASSPORT | SKILL_CERTIFICATE | OTHER
+  issuingCountry String   @default("KE")
+  fileUrl        String
+  uploadedAt     DateTime @default(now())
+  reviewedAt     DateTime?
+  reviewedBy     String?
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+}
+
+// ─── Service Categories ────────────────────────────────────
+
+model ServiceCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String   @default("")
+  icon        String   @default("🔧")
+  isActive    Boolean  @default(true)
+  countryCode String  @default("KE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  providerCategories ProviderCategory[]
+  bookings           Booking[]
+
+  @@index([countryCode])
+}
+
+model ProviderCategory {
+  id         String @id @default(uuid())
+  providerId String
+  categoryId String
+
+  provider Provider       @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  category ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, categoryId])
+}
+
+// ─── Portfolio ─────────────────────────────────────────────
+
+model PortfolioPhoto {
+  id         String   @id @default(uuid())
+  providerId String
+  fileUrl    String
+  caption    String   @default("")
+  createdAt  DateTime @default(now())
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+}
+
+// ─── Bookings ──────────────────────────────────────────────
+
+model Booking {
+  id             String    @id @default(uuid())
+  customerId     String
+  providerId     String
+  categoryId     String
+  status         String    @default("REQUESTED")
+  // REQUESTED → QUOTED → ACCEPTED → IN_PROGRESS → COMPLETED → PAID → REVIEWED
+  // Branches: CANCELLED (from any), DISPUTED (from ACCEPTED/IN_PROGRESS/COMPLETED/PAID)
+  description    String    @default("")
+  location       String    @default("")
+  county         String    @default("")
+  scheduledAt    DateTime?
+  completedAt    DateTime?
+  cancelledAt    DateTime?
+  cancelledBy    String?   // userId
+  cancelReason   String?
+
+  // Quoting
+  quoteAmount    Int?      // in smallest currency unit (cents/cents-equivalent)
+  quoteDuration  Int?      // estimated minutes
+  quoteCurrency  String    @default("KES")
+  quotedAt       DateTime?
+
+  // Commission & totals
+  commissionRate Float     @default(0.10) // 10%
+  countryCode    String    @default("KE")
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  customer         User              @relation("CustomerBookings", fields: [customerId], references: [id])
+  provider         Provider          @relation(fields: [providerId], references: [id])
+  category         ServiceCategory   @relation(fields: [categoryId], references: [id])
+  messages         BookingMessage[]
+  payments         Payment[]
+  reviews          Review[]
+  disputes         Dispute[]
+
+  @@index([customerId])
+  @@index([providerId])
+  @@index([status])
+  @@index([categoryId])
+  @@index([countryCode])
+}
+
+// ─── Booking Messages ──────────────────────────────────────
+
+model BookingMessage {
+  id        String   @id @default(uuid())
+  bookingId String
+  senderId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  sender  User    @relation(fields: [senderId], references: [id])
+
+  @@index([bookingId])
+  @@index([createdAt])
+}
+
+// ─── Payments ─────────────────────────────────────────────
+
+model Payment {
+  id               String   @id @default(uuid())
+  bookingId        String
+  // Amounts in smallest currency unit
+  amount           Int
+  currencyCode     String   @default("KES")
+  status           String   @default("PENDING") // PENDING | ESCROW | RELEASED | REFUNDED | PARTIAL
+  commissionAmount Int      @default(0)
+  providerPayoutAmount Int  @default(0)
+  externalRef      String?  // M-Pesa transaction reference
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([status])
+}
+
+// ─── Reviews ──────────────────────────────────────────────
+
+model Review {
+  id              String   @id @default(uuid())
+  bookingId       String   @unique // one review per booking
+  customerId      String
+  providerId      String
+  rating          Int      // 1-5
+  text            String   @default("")
+  providerResponse String?
+  respondedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  booking  Booking  @relation(fields: [bookingId], references: [id])
+  customer User     @relation(fields: [customerId], references: [id])
+  provider Provider @relation(fields: [providerId], references: [id])
+
+  @@index([providerId])
+  @@index([customerId])
+}
+
+// ─── Disputes ──────────────────────────────────────────────
+
+model Dispute {
+  id              String   @id @default(uuid())
+  bookingId       String   @unique // one dispute per booking
+  openedById      String
+  reason          String
+  status          String   @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED
+  resolutionType  String?  // REFUND_CUSTOMER | RELEASE_PAYMENT | PARTIAL_SPLIT | MORE_INFO
+  adminNotes      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  resolvedAt      DateTime?
+
+  booking   Booking          @relation(fields: [bookingId], references: [id])
+  openedBy  User             @relation(fields: [openedById], references: [id])
+  evidence  DisputeEvidence[]
+
+  @@index([status])
+  @@index([openedById])
+}
+
+model DisputeEvidence {
+  id        String   @id @default(uuid())
+  disputeId String
+  fileUrl   String
+  uploadedBy String
+  createdAt DateTime @default(now())
+
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  @@index([disputeId])
+}
+
+// ─── Support Tickets ─────────────────────────────────────
+
+model SupportTicket {
+  id            String   @id @default(uuid())
+  userId        String
+  subject       String
+  description   String
+  status        String   @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED
+  adminResponse String?
+  respondedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ─── Activity Log (for admin dashboard) ──────────────────
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  type      String   // USER_SIGNED_UP | PROVIDER_VERIFIED | BOOKING_CREATED | etc.
+  actorId   String?
+  actorName String?
+  metadata  String   @default("{}") // JSON string
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+}
